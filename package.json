@@ -1,0 +1,9 @@
+{
+  "name": "aureon-site",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Aureon website with a free Gmail-powered contact form",
+  "dependencies": {
+    "nodemailer": "^6.9.16"
+  }
+}
