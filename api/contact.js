@@ -1,6 +1,11 @@
+// Vercel serverless function: receives the contact form and sends two emails through Gmail.
+//   1) a notification to you
+//   2) a thank-you auto-reply to the visitor
+// Works with Brevo, Gmail or any SMTP provider; see the settings block below.
+
 const nodemailer = require('nodemailer');
 
-const hits = new Map();
+const hits = new Map(); // best-effort rate limit per IP (resets when the function restarts)
 const WINDOW_MS = 10 * 60 * 1000;
 const MAX_HITS = 5;
 
@@ -59,6 +64,7 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ ok: false, error: 'method' });
   }
 
+  // simple rate limit
   const ip = String((req.headers['x-forwarded-for'] || '').split(',')[0] || req.socket?.remoteAddress || 'x').trim();
   const now = Date.now();
   const list = (hits.get(ip) || []).filter((t) => now - t < WINDOW_MS);
@@ -72,6 +78,7 @@ module.exports = async function handler(req, res) {
   }
   body = body || {};
 
+  // hidden "website" field: real people leave it empty, bots fill it. Pretend success.
   if (body.website) return res.status(200).json({ ok: true });
 
   const d = {
@@ -84,16 +91,23 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ ok: false, error: 'invalid' });
   }
 
-  const user = process.env.GMAIL_USER;
-  const pass = process.env.GMAIL_APP_PASSWORD;
+  // Provider settings (Vercel > Settings > Environment Variables).
+  // Brevo:  SMTP_HOST=smtp-relay.brevo.com  SMTP_USER=<brevo login>  SMTP_PASS=<brevo smtp key>  FROM_EMAIL=<verified sender>
+  // Gmail:  GMAIL_USER + GMAIL_APP_PASSWORD (used only when SMTP_HOST is not set)
+  const smtpHost = process.env.SMTP_HOST;
+  const user = smtpHost ? process.env.SMTP_USER : process.env.GMAIL_USER;
+  const pass = smtpHost ? process.env.SMTP_PASS : process.env.GMAIL_APP_PASSWORD;
   if (!user || !pass) return res.status(500).json({ ok: false, error: 'not_configured' });
-  const owner = process.env.OWNER_EMAIL || user;
+  const from = process.env.FROM_EMAIL || process.env.GMAIL_USER || user;
+  const owner = process.env.OWNER_EMAIL || from;
 
   try {
-    const transport = nodemailer.createTransport({ service: 'gmail', auth: { user, pass } });
+    const transport = smtpHost
+      ? nodemailer.createTransport({ host: smtpHost, port: Number(process.env.SMTP_PORT) || 587, secure: false, auth: { user, pass } })
+      : nodemailer.createTransport({ service: 'gmail', auth: { user, pass } });
     await Promise.all([
       transport.sendMail({
-        from: `"Aureon Website" <${user}>`,
+        from: `"Aureon Website" <${from}>`,
         to: owner,
         replyTo: `"${d.name.replace(/["<>]/g, '')}" <${d.email}>`,
         subject: `New Aureon enquiry from ${d.name}`,
@@ -101,7 +115,7 @@ module.exports = async function handler(req, res) {
         text: `New enquiry\n\nName: ${d.name}\nEmail: ${d.email}\nCompany: ${d.company || '-'}\n\n${d.message}`,
       }),
       transport.sendMail({
-        from: `"Aureon Studio" <${user}>`,
+        from: `"Aureon Studio" <${from}>`,
         to: d.email,
         replyTo: owner,
         subject: `Thank you for reaching out to Aureon, ${d.name.split(/\s+/)[0]}`,
