@@ -1,0 +1,27 @@
+{
+  "name": "Aureon Tech",
+  "short_name": "Aureon",
+  "description": "Digital assets that grow your business.",
+  "icons": [
+    {
+      "src": "assets/icons/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/icons/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/icons/maskable-icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "theme_color": "#030614",
+  "background_color": "#030614",
+  "display": "standalone",
+  "start_url": "./"
+}
